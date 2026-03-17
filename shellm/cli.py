@@ -9,12 +9,8 @@ from pathlib import Path
 try:
     from prompt_toolkit import PromptSession
 except ImportError:
-    import getpass
-
     class PromptSession:
-        def prompt(self, message: str, is_password: bool = False) -> str:
-            if is_password:
-                return getpass.getpass(message)
+        def prompt(self, message: str, **_: object) -> str:
             return input(message)
 
 from shellm.config import configure, is_configured, load_config

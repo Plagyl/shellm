@@ -56,7 +56,7 @@ ANTHROPIC_API_KEY=
 GOOGLE_API_KEY=
 ```
 
-If the config is incomplete, `shellm` asks for the API key first, detects the provider when possible, then suggests a few models for that provider before saving everything to `.env`.
+If the config is incomplete, `shellm` asks for the API key first, detects the provider when possible, then suggests a few models for that provider before saving everything to `.env`. When `prompt_toolkit` is available, you can use `Tab` to cycle through the suggested models.
 
 Inside the REPL, use `/config` to update the provider, model, or API key again.
 

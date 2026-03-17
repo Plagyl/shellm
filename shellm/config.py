@@ -5,6 +5,13 @@ from pathlib import Path
 
 from dotenv import load_dotenv, set_key
 
+try:
+    from prompt_toolkit.completion import WordCompleter
+    from prompt_toolkit.key_binding import KeyBindings
+except ImportError:
+    WordCompleter = None
+    KeyBindings = None
+
 ENV_FILE = Path(".env")
 PROVIDERS = ("openai", "anthropic", "google")
 ENV_KEYS = (
@@ -86,7 +93,7 @@ def _existing_provider_and_key(config: dict[str, str]) -> tuple[str | None, str]
 def _prompt_api_key(session, existing_key: str, existing_provider: str | None) -> tuple[str, str]:
     while True:
         prompt = f"API key [{'keep current' if existing_key else 'required'}]: "
-        api_key = session.prompt(prompt, is_password=True).strip()
+        api_key = session.prompt(prompt).strip()
         if not api_key:
             if existing_key:
                 api_key = existing_key
@@ -115,7 +122,8 @@ def _default_model(config: dict[str, str], provider: str) -> str:
 def _prompt_model(session, provider: str, default: str) -> str:
     options = _model_options(provider, default)
     print(f"Suggested {provider} models: {', '.join(options)}")
-    return session.prompt(f"Model [{default}]: ").strip() or default
+    print("Press Tab to cycle through the suggested models.")
+    return _prompt_with_choices(session, f"Model [{default}]: ", default, options)
 
 
 def _model_options(provider: str, current_model: str) -> tuple[str, ...]:
@@ -137,7 +145,39 @@ def _detect_provider_from_api_key(api_key: str) -> str | None:
 
 def _prompt_provider(session, default: str) -> str:
     while True:
-        value = session.prompt(f"Provider [{default}]: ").strip().lower() or default
+        value = _prompt_with_choices(session, f"Provider [{default}]: ", default, PROVIDERS).lower()
         if value in PROVIDERS:
             return value
         print("Choose one of: openai, anthropic, google")
+
+
+def _prompt_with_choices(session, prompt: str, default: str, choices: tuple[str, ...]) -> str:
+    value = session.prompt(prompt, **_choice_prompt_kwargs(choices)).strip()
+    return value or default
+
+
+def _choice_prompt_kwargs(choices: tuple[str, ...]) -> dict:
+    if WordCompleter is None or KeyBindings is None:
+        return {}
+
+    bindings = KeyBindings()
+
+    @bindings.add("tab")
+    def _next_choice(event) -> None:
+        buffer = event.current_buffer
+        if buffer.complete_state:
+            buffer.complete_next()
+        else:
+            buffer.start_completion(select_first=True)
+
+    @bindings.add("s-tab")
+    def _previous_choice(event) -> None:
+        buffer = event.current_buffer
+        if buffer.complete_state:
+            buffer.complete_previous()
+
+    return {
+        "completer": WordCompleter(list(choices), ignore_case=True, sentence=True, match_middle=True),
+        "complete_while_typing": False,
+        "key_bindings": bindings,
+    }
