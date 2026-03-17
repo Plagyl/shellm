@@ -93,7 +93,7 @@ def _existing_provider_and_key(config: dict[str, str]) -> tuple[str | None, str]
 def _prompt_api_key(session, existing_key: str, existing_provider: str | None) -> tuple[str, str]:
     while True:
         prompt = f"API key [{'keep current' if existing_key else 'required'}]: "
-        api_key = session.prompt(prompt).strip()
+        api_key = session.prompt(prompt, is_password=True).strip()
         if not api_key:
             if existing_key:
                 api_key = existing_key
@@ -152,7 +152,7 @@ def _prompt_provider(session, default: str) -> str:
 
 
 def _prompt_with_choices(session, prompt: str, default: str, choices: tuple[str, ...]) -> str:
-    value = session.prompt(prompt, **_choice_prompt_kwargs(choices)).strip()
+    value = session.prompt(prompt, is_password=False, **_choice_prompt_kwargs(choices)).strip()
     return value or default
 
 

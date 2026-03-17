@@ -9,8 +9,12 @@ from pathlib import Path
 try:
     from prompt_toolkit import PromptSession
 except ImportError:
+    import getpass
+
     class PromptSession:
-        def prompt(self, message: str, **_: object) -> str:
+        def prompt(self, message: str, is_password: bool = False, **_: object) -> str:
+            if is_password:
+                return getpass.getpass(message)
             return input(message)
 
 from shellm.config import configure, is_configured, load_config
@@ -38,7 +42,7 @@ def main() -> None:
 
     while True:
         try:
-            user_input = session.prompt("> ").strip()
+            user_input = session.prompt("> ", is_password=False).strip()
         except (EOFError, KeyboardInterrupt):
             print()
             return
@@ -69,7 +73,7 @@ def main() -> None:
 
         if is_sensitive(command):
             print("Sensitive command detected.")
-            answer = session.prompt("Confirm? [y/N] ").strip().lower()
+            answer = session.prompt("Confirm? [y/N] ", is_password=False).strip().lower()
             if answer not in {"y", "yes"}:
                 print("Cancelled.")
                 continue
