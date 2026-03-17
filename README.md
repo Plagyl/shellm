@@ -56,7 +56,7 @@ ANTHROPIC_API_KEY=
 GOOGLE_API_KEY=
 ```
 
-If the config is incomplete, `shellm` will ask for the missing values at startup and save them to `.env`.
+If the config is incomplete, `shellm` asks for the API key first, detects the provider when possible, then suggests a few models for that provider before saving everything to `.env`.
 
 Inside the REPL, use `/config` to update the provider, model, or API key again.
 

@@ -14,11 +14,12 @@ ENV_KEYS = (
     "ANTHROPIC_API_KEY",
     "GOOGLE_API_KEY",
 )
-DEFAULT_MODELS = {
-    "openai": "gpt-4o-mini",
-    "anthropic": "claude-3-5-haiku-latest",
-    "google": "gemini-1.5-flash",
+MODEL_OPTIONS = {
+    "openai": ("gpt-4o-mini", "gpt-4.1-mini", "gpt-4.1"),
+    "anthropic": ("claude-3-5-haiku-latest", "claude-3-7-sonnet-latest", "claude-sonnet-4-0"),
+    "google": ("gemini-2.5-flash", "gemini-2.5-pro", "gemini-flash-latest"),
 }
+DEFAULT_MODELS = {provider: models[0] for provider, models in MODEL_OPTIONS.items()}
 API_KEY_BY_PROVIDER = {
     "openai": "OPENAI_API_KEY",
     "anthropic": "ANTHROPIC_API_KEY",
@@ -53,33 +54,85 @@ def is_configured(config: dict[str, str]) -> bool:
 
 
 def configure(session, config: dict[str, str], env_file: Path = ENV_FILE) -> dict[str, str]:
-    provider_default = config.get("PROVIDER", "").strip().lower() or "openai"
-    provider = _prompt_provider(session, provider_default)
-
-    model_default = config.get("MODEL", "").strip()
-    if not model_default or provider != provider_default:
-        model_default = DEFAULT_MODELS[provider]
-    model = session.prompt(f"Model [{model_default}]: ").strip() or model_default
-
-    api_key_name = API_KEY_BY_PROVIDER[provider]
-    existing_key = config.get(api_key_name, "").strip()
-    while True:
-        prompt = f"{api_key_name} [{'keep current' if existing_key else 'required'}]: "
-        api_key = session.prompt(prompt, is_password=True).strip()
-        if api_key:
-            break
-        if existing_key:
-            api_key = existing_key
-            break
-        print(f"{api_key_name} is required.")
+    existing_provider, existing_key = _existing_provider_and_key(config)
+    api_key, provider = _prompt_api_key(session, existing_key, existing_provider)
+    model_default = _default_model(config, provider)
+    model = _prompt_model(session, provider, model_default)
 
     updated = dict(config)
     updated["PROVIDER"] = provider
     updated["MODEL"] = model
-    updated[api_key_name] = api_key
+    updated[API_KEY_BY_PROVIDER[provider]] = api_key
     save_config(updated, env_file)
     load_dotenv(env_file, override=True)
     return updated
+
+
+def _existing_provider_and_key(config: dict[str, str]) -> tuple[str | None, str]:
+    provider = config.get("PROVIDER", "").strip().lower()
+    if provider in PROVIDERS:
+        key = config.get(API_KEY_BY_PROVIDER[provider], "").strip()
+        if key:
+            return provider, key
+
+    for candidate in PROVIDERS:
+        key = config.get(API_KEY_BY_PROVIDER[candidate], "").strip()
+        if key:
+            return candidate, key
+
+    return None, ""
+
+
+def _prompt_api_key(session, existing_key: str, existing_provider: str | None) -> tuple[str, str]:
+    while True:
+        prompt = f"API key [{'keep current' if existing_key else 'required'}]: "
+        api_key = session.prompt(prompt, is_password=True).strip()
+        if not api_key:
+            if existing_key:
+                api_key = existing_key
+            else:
+                print("API key is required.")
+                continue
+
+        provider = _detect_provider_from_api_key(api_key)
+        if provider:
+            print(f"Detected provider: {provider}")
+            return api_key, provider
+
+        provider_default = existing_provider or "openai"
+        print("Could not detect the provider from this key.")
+        return api_key, _prompt_provider(session, provider_default)
+
+
+def _default_model(config: dict[str, str], provider: str) -> str:
+    current_provider = config.get("PROVIDER", "").strip().lower()
+    current_model = config.get("MODEL", "").strip()
+    if current_provider == provider and current_model:
+        return current_model
+    return DEFAULT_MODELS[provider]
+
+
+def _prompt_model(session, provider: str, default: str) -> str:
+    options = _model_options(provider, default)
+    print(f"Suggested {provider} models: {', '.join(options)}")
+    return session.prompt(f"Model [{default}]: ").strip() or default
+
+
+def _model_options(provider: str, current_model: str) -> tuple[str, ...]:
+    options = list(MODEL_OPTIONS[provider])
+    if current_model and current_model not in options:
+        options.insert(0, current_model)
+    return tuple(options)
+
+
+def _detect_provider_from_api_key(api_key: str) -> str | None:
+    if api_key.startswith("sk-ant-"):
+        return "anthropic"
+    if api_key.startswith("AIza"):
+        return "google"
+    if api_key.startswith("sk-proj-") or api_key.startswith("sk-"):
+        return "openai"
+    return None
 
 
 def _prompt_provider(session, default: str) -> str:

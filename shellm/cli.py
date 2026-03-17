@@ -31,7 +31,7 @@ def main() -> None:
     previous_cwd: Path | None = None
 
     if not is_configured(config):
-        print("Missing configuration. Let's set up your provider.")
+        print("Missing configuration. Let's set up your API key.")
         try:
             config = configure(session, config)
         except (EOFError, KeyboardInterrupt):
